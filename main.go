@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bot-ai-fb/database"
+	"bot-ai-fb/ginweb"
 	"bot-ai-fb/logic"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
+	"bot-ai-fb/midleware"
+	"bot-ai-fb/redis"
+	"github.com/gin-gonic/gin"
 )
 
 /**
@@ -19,10 +20,43 @@ import (
 
 func main() {
 
-	http.HandleFunc("/", logic.Test)
+	//Gin web 方式启动   gin.Default() 默认内部调用New Logger Recovery中间件
+	router := gin.Default()
+	//中间件的使用
+	router.Use(midleware.X)
 
+	//数据库连接测试  这个放在前面哈 !!!  这里连接配置可以放到配置文件里面或者以后有配置中心也行
+	//database.ConnectDb()
+	database.InitDB()
+
+	//REDIS 初始化
+	redis.InitRedis()
+
+	//路由
+	router.GET("/", ginweb.Y)
+	router.GET("/x", ginweb.Test)
+
+	//RESTFUL   参数解析
+	router.GET("/y/:name", ginweb.ParamTest)
+	//?name=123 参数解析
+	router.GET("/y/", ginweb.ParamTest)
+
+	//INSERT TEST  GET 方便浏览器测试 不用开POSTMAN
+	router.GET("/save/:name/:age", ginweb.Save)
+	router.GET("/del/:id", ginweb.Delete)
+
+	//REDIS TEST
+	router.GET("/redis/:name", ginweb.RedisAdd)
+
+	//面试测试  localhost:9999/webhook  GET/POST
+	router.GET("/webhook", logic.DoTaskV2)
+	router.POST("/webhook", logic.DoTaskV2)
+
+	//启动服务
+	router.Run("127.0.0.1:9999")
+
+	//传统http方式启动  http.ListenAndServe
 	//SERVER LOGIC
-
 	//0.GET  fb req verify
 	//1.POST send message  [user--> fb --> go app --> NPL back server]
 	//2.then response to user [NPL back server --> go app--> fb --> user]
@@ -32,16 +66,14 @@ func main() {
 	//a public URL you can use for browsing your local server. Keep in mind,
 	//to use your bot in production, you need to use a real IaaS like AWS, Ali-cloud, QiNiu-cloud, etc
 
-	http.HandleFunc("/webhook", logic.DoTask)
-
-	//GET PORT FROM ENV
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8888"
-		log.Printf("Defaulting to port %s", port)
-	}
-
-	log.Printf("Listening on port %s", port)
-	log.Printf("Open http://localhost:%s in the browser", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
+	//http.HandleFunc("/", logic.Test)
+	//http.HandleFunc("/webhook", logic.DoTask)
+	//port := os.Getenv("PORT")
+	//if port == "" {
+	//	port = "8888"
+	//	log.Printf("Defaulting to port %s", port)
+	//}
+	//log.Printf("Listening on port %s", port)
+	//log.Printf("Open http://localhost:%s in the browser", port)
+	//log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
 }

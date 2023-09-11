@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/valyala/fasthttp"
 	"io"
 	"io/ioutil"
@@ -48,6 +49,23 @@ const (
 
 // DoTask 请求入口 公开方法 首字母大写
 func DoTask(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodGet {
+		//GET request
+		verifyGet(w, r)
+		return
+	} else {
+		//POST request
+		reqTaskPost(w, r)
+		return
+	}
+
+}
+
+func DoTaskV2(c *gin.Context) {
+
+	w := c.Writer  //w http.ResponseWriter
+	r := c.Request //r *http.Request
 
 	if r.Method == http.MethodGet {
 		//GET request
