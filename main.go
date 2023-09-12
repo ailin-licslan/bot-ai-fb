@@ -1,13 +1,19 @@
 package main
 
 import (
-	"bot-ai-fb/database"
-	"bot-ai-fb/ginweb"
-	"bot-ai-fb/logic"
-	"bot-ai-fb/midleware"
-	"bot-ai-fb/redis"
+	Auth "bot-ai-fb/auth"
+	Db "bot-ai-fb/database"
+	Gin "bot-ai-fb/ginweb"
+	Log "bot-ai-fb/logger"
+	Logic "bot-ai-fb/logic"
+	Mid "bot-ai-fb/midleware"
+	Redis "bot-ai-fb/redis"
 	settings "bot-ai-fb/setting"
 	"github.com/gin-gonic/gin"
+	Swag "github.com/swaggo/files"
+	GinSwag "github.com/swaggo/gin-swagger"
+	"net/http"
+	"time"
 )
 
 /**
@@ -24,41 +30,65 @@ func main() {
 	//Gin web 方式启动   gin.Default() 默认内部调用New Logger Recovery中间件
 	router := gin.Default()
 	//中间件的使用
-	router.Use(midleware.X)
+	router.Use(
+		Mid.X,                            //测试中间件
+		Log.GinLogger(),                  //记录日志
+		Log.GinRecovery(true),            // Recovery 中间件会 recover掉项目可能出现的panic，并使用zap记录相关日志
+		Mid.RateLimit(2*time.Second, 40), // 每两秒钟添加十个令牌  全局限流
+	)
 	//加载配置文件
 	settings.Init()
 	//数据库连接测试  这个放在前面哈 !!!  这里连接配置可以放到配置文件里面或者以后有配置中心也行
 	//database.ConnectDb()
 	configMySQL := settings.Conf.MySQLConfig
-	database.InitDB(configMySQL)
+	Db.InitDB(configMySQL)
 	//程序退出 关闭数据库连接
-	defer database.Close()
-
+	defer Db.Close()
+	//日志初始化
+	Log.Init(settings.Conf.LogConfig, settings.Conf.Mode)
 	//REDIS 初始化
 	configRedis := settings.Conf.RedisConfig
-	redis.InitRedis(configRedis)
+	Redis.InitRedis(configRedis)
 	//程序退出 关闭redis连接
-	defer redis.Close()
+	defer Redis.Close()
 
-	//路由
-	router.GET("/", ginweb.Y)
-	router.GET("/x", ginweb.Test)
+	//静态文件加载
+	router.LoadHTMLFiles("templates/index.html") // 加载HTML
+	router.Static("/static", "./static")         // 加载静态文件
+	router.GET("/", func(context *gin.Context) {
+		context.HTML(http.StatusOK, "index.html", nil)
+	})
 
-	//RESTFUL   参数解析
-	router.GET("/y/:name", ginweb.ParamTest)
-	//?name=123 参数解析
-	router.GET("/y/", ginweb.ParamTest)
+	// 注册 SWAGGER
+	router.GET("/swagger/*any", GinSwag.WrapHandler(Swag.Handler))
 
-	//INSERT TEST  GET 方便浏览器测试 不用开POSTMAN
-	router.GET("/save/:name/:age", ginweb.Save)
-	router.GET("/del/:id", ginweb.Delete)
+	//BasicAuth路由组权限案例   用户授权校验
+	groupAuth := router.Group("/admin", Auth.NameList())
+	//路由的前缀 base path /v1/x
+	groupAuth.GET("/v1/x", Auth.CheckAuth)
+	//路由 测试
+	groupAuth.GET("/z", Gin.Y)
+	groupAuth.GET("/x", Gin.Test)
 
-	//REDIS TEST
-	router.GET("/redis/:name", ginweb.RedisAdd)
+	//RESTFUL   参数解析  测试
+	groupAuth.GET("/y/:name", Gin.ParamTest)
+	//?name=123 参数解析  测试
+	groupAuth.GET("/y", Gin.ParamTest)
+
+	//INSERT TEST  GET 方便浏览器测试 不用开POSTMAN 测试
+	groupAuth.GET("/save/:name/:age", Gin.Save)
+	groupAuth.GET("/del/:id", Gin.Delete)
+
+	//REDIS TEST  测试
+	router.GET("/redis/:name", Gin.RedisAdd)
 
 	//面试测试  localhost:9999/webhook  GET/POST
-	router.GET("/webhook", logic.DoTaskV2)
-	router.POST("/webhook", logic.DoTaskV2)
+	router.GET("/webhook", Logic.DoTaskV2)
+	router.POST("/webhook", Logic.DoTaskV2)
+
+	//@TODO 登录注册 token JWT
+
+	//@TODO 业务开发
 
 	//启动服务
 	router.Run("127.0.0.1:9999")

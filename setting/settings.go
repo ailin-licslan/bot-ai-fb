@@ -49,11 +49,11 @@ type LogConfig struct {
 }
 
 func Init() error {
-	// 读取配置文件
+	// read setting file
 	viper.SetConfigFile("./conf/config.yaml")
-	// 读取环境变量
+	// read ENV
 	viper.WatchConfig()
-	// 监听配置文件变化
+	// watch file changes
 	viper.OnConfigChange(func(in fsnotify.Event) {
 		fmt.Println("config file was modified by others! ")
 		err := viper.Unmarshal(&Conf)
@@ -62,12 +62,12 @@ func Init() error {
 
 		}
 	})
-	// 查找并读取配置文件
+	// look up config file
 	err := viper.ReadInConfig()
 	if err != nil {
 		panic(fmt.Errorf("ReadInConfig failed, err: %v", err))
 	}
-	// 把读取到的配置信息反序列化到Conf变量中
+	// Deserialize the read configuration information into the Conf variable
 	if err := viper.Unmarshal(&Conf); err != nil {
 		panic(fmt.Errorf("unmarshal to Conf failed, err:%v", err))
 	}
