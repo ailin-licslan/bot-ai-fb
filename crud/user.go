@@ -19,8 +19,8 @@ func InsertUser(db *sql.DB, user model.User) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	add.Close()
-	defer db.Close()
+	//add.Close()
+	//defer db.Close()
 
 }
 
@@ -35,8 +35,8 @@ func DeleteUser(db *sql.DB, id int) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	del.Close()
-	defer db.Close()
+	//del.Close()
+	//defer db.Close()
 
 }
 

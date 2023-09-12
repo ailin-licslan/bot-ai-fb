@@ -6,6 +6,7 @@ import (
 	"bot-ai-fb/logic"
 	"bot-ai-fb/midleware"
 	"bot-ai-fb/redis"
+	settings "bot-ai-fb/setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,13 +25,20 @@ func main() {
 	router := gin.Default()
 	//中间件的使用
 	router.Use(midleware.X)
-
+	//加载配置文件
+	settings.Init()
 	//数据库连接测试  这个放在前面哈 !!!  这里连接配置可以放到配置文件里面或者以后有配置中心也行
 	//database.ConnectDb()
-	database.InitDB()
+	configMySQL := settings.Conf.MySQLConfig
+	database.InitDB(configMySQL)
+	//程序退出 关闭数据库连接
+	defer database.Close()
 
 	//REDIS 初始化
-	redis.InitRedis()
+	configRedis := settings.Conf.RedisConfig
+	redis.InitRedis(configRedis)
+	//程序退出 关闭redis连接
+	defer redis.Close()
 
 	//路由
 	router.GET("/", ginweb.Y)
