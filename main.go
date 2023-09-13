@@ -2,6 +2,7 @@ package main
 
 import (
 	Auth "bot-ai-fb/auth"
+	"bot-ai-fb/common"
 	Db "bot-ai-fb/database"
 	Gin "bot-ai-fb/ginweb"
 	Log "bot-ai-fb/logger"
@@ -27,6 +28,8 @@ import (
 
 func main() {
 
+	//=====================================加载配置部分========================================
+
 	//Gin web 方式启动   gin.Default() 默认内部调用New Logger Recovery中间件
 	router := gin.Default()
 	//中间件的使用
@@ -51,6 +54,10 @@ func main() {
 	Redis.InitRedis(configRedis)
 	//程序退出 关闭redis连接
 	defer Redis.Close()
+	// 雪花算法生成分布式ID
+	common.Init(1)
+
+	//=====================================测试学习部分========================================
 
 	//静态文件加载
 	router.LoadHTMLFiles("templates/index.html") // 加载HTML
@@ -81,14 +88,30 @@ func main() {
 
 	//REDIS TEST  测试
 	router.GET("/redis/:name", Gin.RedisAdd)
-
 	//面试测试  localhost:9999/webhook  GET/POST
 	router.GET("/webhook", Logic.DoTaskV2)
 	router.POST("/webhook", Logic.DoTaskV2)
 
-	//@TODO 登录注册 token JWT
+	//=====================================业务开发部分========================================
 
-	//@TODO 业务开发
+	// 登录注册 token JWT
+	router.POST("/Login", Auth.Login)
+	router.POST("/SignUp", Auth.SignUp)
+	router.GET("/RefreshToken", Auth.RefreshToken) // 刷新accessToken
+
+	// 中间件 下面的接口需要登录后带上JWT去请求的
+	groupAuthToken := router.Group("/admin-api", Mid.JWTAuth())
+	//groupAuthToken.Use(Mid.JWTAuth()) // 应用JWT认证中间件
+	{
+		//业务开发
+		groupAuthToken.POST("/post", nil)       // 创建帖子
+		groupAuthToken.POST("/vote", nil)       // 投票
+		groupAuthToken.POST("/comment", nil)    // 评论
+		groupAuthToken.GET("/commentList", nil) // 评论列表
+		groupAuthToken.GET("/ping", func(c *gin.Context) {
+			c.String(http.StatusOK, "pong")
+		})
+	}
 
 	//启动服务
 	router.Run("127.0.0.1:9999")
