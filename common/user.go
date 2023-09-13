@@ -40,8 +40,8 @@ func (u *User) UnmarshalJSON(data []byte) (err error) {
 	return
 }
 
-// RegisterForm 注册请求参数
-type RegisterForm struct {
+// SignUpData 注册请求参数
+type SignUpData struct {
 	UserName        string `json:"username" binding:"required"`  // 用户名
 	Email           string `json:"email" binding:"required"`     // 邮箱
 	Gender          int    `json:"gender" binding:"oneof=0 1 2"` // 性别 0:未知 1:男 2:女
@@ -56,7 +56,7 @@ type LoginData struct {
 }
 
 // UnmarshalJSON 为RegisterForm类型实现自定义的UnmarshalJSON方法
-func (r *RegisterForm) UnmarshalJSON(data []byte) (err error) {
+func (r *SignUpData) UnmarshalJSON(data []byte) (err error) {
 	required := struct {
 		UserName        string `json:"username"`
 		Email           string `json:"email"`    // 邮箱

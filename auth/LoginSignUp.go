@@ -18,13 +18,13 @@ func Login(c *gin.Context) {
 
 	//1.参数校验
 	var uLogin *common.LoginData
-	err, done := check(c, uLogin)
+	err, done, u := check(c, uLogin)
 	if done {
 		return
 	}
 
 	//2.登录业务
-	user, done2 := taskLogin(c, err, uLogin)
+	user, done2 := taskLogin(c, err, u)
 	if done2 {
 		return
 	}
@@ -36,16 +36,17 @@ func Login(c *gin.Context) {
 func SignUp(c *gin.Context) {
 
 	// 1.获取请求参数
-	var fo *common.RegisterForm
+	var fo *common.SignUpData
 
 	// 2.校验数据有效性
-	if signUpCheck(c, fo) {
+	upCheck, data := signUpCheck(c, fo)
+	if upCheck {
 		return
 	}
 
-	fmt.Printf("fo: %v\n", fo)
+	fmt.Printf("fo: %v\n", data)
 	// 3.业务处理 —— 注册用户
-	if singUpTask(c, fo) {
+	if singUpTask(c, data) {
 		return
 	}
 
@@ -79,7 +80,7 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
-func singUpTask(c *gin.Context, fo *common.RegisterForm) bool {
+func singUpTask(c *gin.Context, fo *common.SignUpData) bool {
 	if err := bus.SignUp(fo); err != nil {
 		zap.L().Error("logic.signup failed", zap.Error(err))
 		if err.Error() == common.ErrorUserNotExit {
@@ -92,7 +93,8 @@ func singUpTask(c *gin.Context, fo *common.RegisterForm) bool {
 	return false
 }
 
-func signUpCheck(c *gin.Context, fo *common.RegisterForm) bool {
+func signUpCheck(c *gin.Context, fo *common.SignUpData) (bool, *common.SignUpData) {
+
 	if err := c.ShouldBindJSON(&fo); err != nil {
 		// 请求参数有误，直接返回响应
 		zap.L().Error("SignUp with invalid param", zap.Error(err))
@@ -101,21 +103,21 @@ func signUpCheck(c *gin.Context, fo *common.RegisterForm) bool {
 		if !ok {
 			// 非validator.ValidationErrors类型错误直接返回
 			common.ResponseError(c, common.CodeInvalidParams) // 请求参数错误
-			return true
+			return true, nil
 		}
 		// validator.ValidationErrors类型错误则进行翻译
 		common.ResponseErrorWithMsg(c, common.CodeInvalidParams, common.RemoveTopStruct(errs.Translate(trans)))
-		return true // 翻译错误
+		return true, nil // 翻译错误
 	}
-	return false
+	return false, fo
 }
 
 func getData(c *gin.Context, user *common.User) {
 	common.ResponseSuccess(c, gin.H{
-		"id":            fmt.Sprintf("%d", user.UserID), //js识别的最大值：id值大于1<<53-1  int64: i<<63-1
-		"username":      user.UserName,
-		"access_token":  user.AccessToken,
-		"refresh_token": user.RefreshToken,
+		"id":           fmt.Sprintf("%d", user.UserID), //js识别的最大值：id值大于1<<53-1  int64: i<<63-1
+		"username":     user.UserName,
+		"accessToken":  user.AccessToken,
+		"refreshToken": user.RefreshToken,
 	})
 }
 
@@ -125,15 +127,15 @@ func taskLogin(c *gin.Context, err error, uLogin *common.LoginData) (*common.Use
 		zap.L().Error("logic.Login failed", zap.String("username", uLogin.UserName), zap.Error(err))
 		if err.Error() == common.ErrorUserNotExit {
 			common.ResponseError(c, common.CodeUserNotExist)
-			return nil, false
+			return nil, true
 		}
 		common.ResponseError(c, common.CodeInvalidParams)
-		return nil, false
+		return nil, true
 	}
-	return user, true
+	return user, false
 }
 
-func check(c *gin.Context, uLogin *common.LoginData) (error, bool) {
+func check(c *gin.Context, uLogin *common.LoginData) (error, bool, *common.LoginData) {
 	err := c.ShouldBindJSON(&uLogin)
 	if err != nil {
 		zap.L().Error("Login with invalid param", zap.Error(err))
@@ -141,12 +143,12 @@ func check(c *gin.Context, uLogin *common.LoginData) (error, bool) {
 		if !ok {
 			// 非validator.ValidationErrors类型错误直接返回
 			common.ResponseError(c, common.CodeInvalidParams) // 请求参数错误
-			return nil, true
+			return nil, true, nil
 		}
 		// validator.ValidationErrors类型错误则进行翻译
 		common.ResponseErrorWithMsg(c, common.CodeInvalidParams,
 			common.RemoveTopStruct(errors.Translate(trans)))
-		return nil, true
+		return nil, true, nil
 	}
-	return err, false
+	return err, false, uLogin
 }

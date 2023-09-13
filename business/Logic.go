@@ -15,9 +15,23 @@ func LoginTask(u *common.LoginData) (user *common.User, err error) {
 	// 记录一下原始密码(用户登录的密码)
 	originPassword := u.Password
 
-	sqlStr := "SELECT id, user_name, password FROM USER WHERE user_name = ?"
+	sqlStr := "SELECT user_id,username,password FROM t_user WHERE username = ?"
 
-	_, err = Db.Dbs.Query(sqlStr, u.UserName)
+	var us []common.User
+	rows, err := Db.Dbs.Query(sqlStr, u.UserName)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var u common.User
+		// sqlx 提供了便捷方法可以将查询结果直接扫描到结构体
+		err2 := rows.Scan(&u.UserID, &u.UserName, &u.Password)
+		if err2 != nil {
+			return nil, err2
+		}
+		us = append(us, u)
+	}
+
 	// 查询数据库出错
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
@@ -28,17 +42,24 @@ func LoginTask(u *common.LoginData) (user *common.User, err error) {
 	}
 	// 生成加密密码与查询到的密码比较
 	password := encryptPassword([]byte(originPassword))
-	if user.Password != password {
+	p := us[0].Password
+	id := us[0].UserID
+	name := us[0].UserName
+	if p != password {
 		return nil, errors.New(common.ErrorPasswordWrong)
 	}
 
-	accessToken, refreshToken, err := common.GenToken(user.UserID, user.UserName)
+	accessToken, refreshToken, err := common.GenToken(id, name)
 	if err != nil {
 		return
 	}
-	user.AccessToken = accessToken
-	user.RefreshToken = refreshToken
 
+	user = &common.User{
+		UserID:       id,
+		UserName:     name,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
 	return user, err
 }
 
@@ -51,7 +72,7 @@ func encryptPassword(data []byte) (result string) {
 	return hex.EncodeToString(h.Sum(data))
 }
 
-func SignUp(p *common.RegisterForm) (error error) {
+func SignUp(p *common.SignUpData) (error error) {
 	// 1、判断用户存不存在
 	err := CheckUserExist(p.UserName)
 	if err != nil {
@@ -78,14 +99,24 @@ func SignUp(p *common.RegisterForm) (error error) {
 
 func CheckUserExist(username string) (error error) {
 
-	sqlStr := `SELECT count(user_id) FROM user WHERE username = ?`
+	sqlStr := `SELECT * FROM t_user WHERE username = ?`
 
-	query, err := Db.Dbs.Query(sqlStr, username)
+	var us []common.User
+	rows, err := Db.Dbs.Query(sqlStr, username)
 	if err != nil {
 		return err
 	}
+	for rows.Next() {
+		var u common.User
+		// sqlx 提供了便捷方法可以将查询结果直接扫描到结构体
+		err = rows.Scan(&u)
+		if err != nil {
+			return err
+		}
+		us = append(us, u)
+	}
 
-	if query != nil {
+	if cap(us) > 0 {
 		return errors.New(common.ErrorUserExit)
 	}
 	return
@@ -96,7 +127,7 @@ func SaveUser(user common.User) (error error) {
 	// 对密码进行加密
 	user.Password = encryptPassword([]byte(user.Password))
 	// 执行SQL语句入库
-	sqlStr := `INSERT INTO user(user_id,username,password,email,gender) VALUES(?,?,?,?,?)`
+	sqlStr := `INSERT INTO t_user(user_id,username,password,email,gender) VALUES(?,?,?,?,?)`
 	_, err := Db.Dbs.Exec(sqlStr, user.UserID, user.UserName, user.Password, user.Email, user.Gender)
 	return err
 }

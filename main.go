@@ -35,7 +35,6 @@ func main() {
 	//中间件的使用
 	router.Use(
 		Mid.X,                            //测试中间件
-		Log.GinLogger(),                  //记录日志
 		Log.GinRecovery(true),            // Recovery 中间件会 recover掉项目可能出现的panic，并使用zap记录相关日志
 		Mid.RateLimit(2*time.Second, 40), // 每两秒钟添加十个令牌  全局限流
 	)
@@ -56,6 +55,8 @@ func main() {
 	defer Redis.Close()
 	// 雪花算法生成分布式ID
 	common.Init(1)
+	// 初始化翻译器
+	common.InitTrans("zh")
 
 	//=====================================测试学习部分========================================
 
@@ -69,8 +70,8 @@ func main() {
 	// 注册 SWAGGER
 	router.GET("/swagger/*any", GinSwag.WrapHandler(Swag.Handler))
 
-	//BasicAuth路由组权限案例   用户授权校验
-	groupAuth := router.Group("/admin", Auth.NameList())
+	//BasicAuth路由组权限案例   用户授权校验  Auth.NameList()
+	groupAuth := router.Group("/admin", Mid.JWTAuth())
 	//路由的前缀 base path /v1/x
 	groupAuth.GET("/v1/x", Auth.CheckAuth)
 	//路由 测试
@@ -100,18 +101,18 @@ func main() {
 	router.GET("/RefreshToken", Auth.RefreshToken) // 刷新accessToken
 
 	// 中间件 下面的接口需要登录后带上JWT去请求的
-	groupAuthToken := router.Group("/admin-api", Mid.JWTAuth())
+	//groupAuthToken := router.Group("/admin-api")
 	//groupAuthToken.Use(Mid.JWTAuth()) // 应用JWT认证中间件
-	{
-		//业务开发
-		groupAuthToken.POST("/post", nil)       // 创建帖子
-		groupAuthToken.POST("/vote", nil)       // 投票
-		groupAuthToken.POST("/comment", nil)    // 评论
-		groupAuthToken.GET("/commentList", nil) // 评论列表
-		groupAuthToken.GET("/ping", func(c *gin.Context) {
-			c.String(http.StatusOK, "pong")
-		})
-	}
+	//{
+	//	//业务开发
+	//	groupAuthToken.POST("/post", nil)       // 创建帖子
+	//	groupAuthToken.POST("/vote", nil)       // 投票
+	//	groupAuthToken.POST("/comment", nil)    // 评论
+	//	groupAuthToken.GET("/commentList", nil) // 评论列表
+	//	groupAuthToken.GET("/ping", func(c *gin.Context) {
+	//		c.String(http.StatusOK, "pong")
+	//	})
+	//}
 
 	//启动服务
 	router.Run("127.0.0.1:9999")
